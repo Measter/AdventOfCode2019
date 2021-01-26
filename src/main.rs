@@ -18,9 +18,12 @@ use usbd_serial::{SerialPort, USB_CLASS_CDC};
 
 use core::fmt::Write;
 
+mod rtc;
+
 #[entry]
 fn main() -> ! {
     let periphs = stm32::Peripherals::take().unwrap();
+
     let mut rcc = periphs.RCC.constrain();
 
     let mut flash = periphs.FLASH.constrain();
@@ -74,9 +77,16 @@ fn main() -> ! {
     display.init().unwrap();
     let _ = display.clear();
 
-    writeln!(&mut display, "AoC 2019");
+    let rtc = rtc::RTC::init(periphs.RTC);
+
+    let _ = writeln!(&mut display, "AoC 2019");
+    let start = rtc.now();
 
     loop {
+        // delay(clocks.sysclk().0 / 10); // 100ms wait.
+
+        let _ = write!(&mut display, "\r{}", rtc.now().elapsed_since(&start));
+
         if !usb_dev.poll(&mut [&mut serial]) {
             continue;
         }
