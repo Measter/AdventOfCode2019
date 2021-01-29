@@ -1,0 +1,20 @@
+[package]
+name = "aoc19_mcu"
+version = "0.1.0"
+authors = ["Stuart Haidon <serayen.sh@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cortex-m = "0.6.0"
+cortex-m-rt = "0.6.13"
+panic-semihosting = "0.5.6"
+ssd1306 = "0.5.1"
+stm32f3-discovery = "0.5.0"
+usb-device = "0.2.7"
+usbd-serial = "0.1.1"
+
+[dependencies.shared]
+path = "../shared"
+
