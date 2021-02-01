@@ -86,7 +86,7 @@ impl<'a> Decompress<'a> {
         }
 
         let written_buf = &dst[..end];
-        let len_dif = self.records.len() - remaining_bytes.len();
+        let len_dif = self.records.len() - self.current_record - remaining_bytes.len();
         self.current_record += len_dif;
 
         Some(written_buf)

@@ -40,7 +40,7 @@ impl RunLengthEncoded {
         if val > RUN_LEN_MAX_BYTE {
             let low_byte: u8 = (val & RUN_LEN_MAX_BYTE).try_into().unwrap();
             let low_byte = low_byte | MULTI_BYTE_START;
-            let high_byte = ((val >> 7) & RUN_LEN_MAX_BYTE).try_into().unwrap();
+            let high_byte = ((val >> 7) & 0xFF).try_into().unwrap();
 
             RunLengthEncoded::Double([low_byte, high_byte])
         } else {
@@ -52,7 +52,7 @@ impl RunLengthEncoded {
     fn decode(bytes: &[u8]) -> Option<(u16, &[u8])> {
         match bytes {
             [val @ 0..=0x7F, xs @ ..] => Some(((*val).into(), xs)),
-            [low_byte @ 0x80..=0xFF, high_byte @ 0x00..=0x7F, xs @ ..] => {
+            [low_byte @ 0x80..=0xFF, high_byte, xs @ ..] => {
                 let upper: u16 = (*high_byte).into();
                 let lower: u16 = (*low_byte).into();
                 Some(((upper << 7) | lower & RUN_LEN_MAX_BYTE, xs))

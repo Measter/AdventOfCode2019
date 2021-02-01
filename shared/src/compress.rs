@@ -4,9 +4,12 @@ use std::{
     io::Write,
 };
 
-use crate::RunLengthEncoded;
+use crate::{
+    RunLengthEncoded, ADDR_SIZE, DICT_START_ADDR, LOOKUP_START, NUM_RECORD_ADDR, RECORD_START_ADDR,
+};
 
-use super::{ADDR_SIZE, DICT_START_ADDR, LOOKUP_START, NUM_RECORD_ADDR, RECORD_START_ADDR};
+const MAX_DICT_LEN: usize = 512;
+const MAX_DICT_ENTRY_LEN: usize = 5;
 
 #[derive(Debug)]
 pub struct Compress {
@@ -57,19 +60,21 @@ impl Compress {
         for idx in 0..record.len() {
             let new_seq = &record[cur_seq_start..=idx];
 
-            if self.dict.contains_key(new_seq) {
+            if self.dict.contains_key(new_seq) && new_seq.len() <= MAX_DICT_ENTRY_LEN {
                 cur_seq = new_seq;
             } else {
                 // Write current sequence to output.
                 compressed.push(self.dict[cur_seq]);
 
-                self.dict.insert(
-                    new_seq.to_vec(),
-                    self.dict
-                        .len()
-                        .try_into()
-                        .expect("Unable to encode length as u16"),
-                );
+                if self.dict.len() < MAX_DICT_LEN {
+                    self.dict.insert(
+                        new_seq.to_vec(),
+                        self.dict
+                            .len()
+                            .try_into()
+                            .expect("Unable to encode length as u16"),
+                    );
+                }
 
                 // Restart the sequence starting with the current byte.
                 cur_seq_start = idx;
@@ -200,10 +205,38 @@ mod tests {
         let mut reader = crate::decompress::Decompress::open(&output);
         assert_eq!(reader.num_records(), 2);
 
-        let mut buf = [0u8; 50];
+        let mut buf = [0_u8; 50];
         for _ in 0..reader.num_records() {
             let record = reader.next_record(&mut buf);
             assert_eq!(record, Some(input_text.as_bytes()));
+        }
+    }
+
+    #[test]
+    fn big_file_test() {
+        let input_text = std::fs::read_to_string("test_data/aoc_2002.txt").unwrap();
+        let dict: BTreeSet<_> = input_text
+            .lines()
+            .flat_map(str::as_bytes)
+            .copied()
+            .collect();
+        let mut archive = Compress::with_dict(dict);
+
+        let mut num_records = 0;
+        for line in input_text.lines() {
+            archive.add_record(line);
+            num_records += 1;
+        }
+
+        let output = archive.store_archive();
+
+        let mut reader = crate::decompress::Decompress::open(&output);
+        assert_eq!(num_records, reader.num_records());
+
+        let mut buf = [0_u8; 50];
+        for (i, line) in input_text.lines().enumerate() {
+            let record = reader.next_record(&mut buf);
+            assert_eq!(record, Some(line.as_bytes()), "{}: {}", i, line);
         }
     }
 }
