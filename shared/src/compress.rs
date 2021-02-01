@@ -4,6 +4,8 @@ use std::{
     io::Write,
 };
 
+use crate::RunLengthEncoded;
+
 use super::{ADDR_SIZE, DICT_START_ADDR, LOOKUP_START, NUM_RECORD_ADDR, RECORD_START_ADDR};
 
 #[derive(Debug)]
@@ -13,18 +15,33 @@ pub struct Compress {
     max_record_len: u16,
 }
 
+impl Default for Compress {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Compress {
+    // This code results in a lot of casting with the intention of truncating.
+    #![allow(clippy::clippy::cast_possible_truncation)]
+
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            dict: (0..=255u16).map(|b| (vec![b as u8], b as _)).collect(),
+            dict: (0..=255_u16).map(|b| (vec![b as u8], b as _)).collect(),
             records: Vec::new(),
             max_record_len: 0,
         }
     }
 
+    #[must_use]
     pub fn with_dict(dict: BTreeSet<u8>) -> Self {
         Self {
-            dict: dict.iter().zip(0..).map(|(c, i)| (vec![*c], i)).collect(),
+            dict: dict
+                .into_iter()
+                .zip(0..)
+                .map(|(c, i)| (vec![c], i))
+                .collect(),
             records: Vec::new(),
             max_record_len: 0,
         }
@@ -56,7 +73,7 @@ impl Compress {
 
                 // Restart the sequence starting with the current byte.
                 cur_seq_start = idx;
-                cur_seq = &record[idx..idx + 1];
+                cur_seq = &record[idx..=idx];
             }
         }
 
@@ -67,27 +84,34 @@ impl Compress {
         }
 
         self.records.push(compressed);
-        self.max_record_len = self.max_record_len.max(record.len() as _);
+        self.max_record_len = self
+            .max_record_len
+            .max(record.len().try_into().expect("Length too long"));
     }
 
     /// Stores the compressed archive into a data structure readable by `Decompress`.
+    #[must_use]
     pub fn store_archive(&self) -> Vec<u8> {
         let mut archive = Vec::new();
+        let records_len: u16 = self
+            .records
+            .len()
+            .try_into()
+            .expect("Records length too long");
 
         let dictionary_keys: BTreeMap<_, _> = self.dict.iter().map(|(k, v)| (v, k)).collect();
         let lookup_length_bytes = dictionary_keys.len() * ADDR_SIZE;
         archive.resize(lookup_length_bytes + LOOKUP_START, 0);
 
         // Number of records.
-        archive[NUM_RECORD_ADDR]
-            .copy_from_slice((self.records.len() as u16).to_le_bytes().as_ref());
+        archive[NUM_RECORD_ADDR].copy_from_slice(records_len.to_le_bytes().as_ref());
 
         let mut cur_addr: u16 = 0; // Address relative to dictionary start.
                                    // Update the dictionary start address.
-        let dict_start_addr = archive.len() as u16;
+        let dict_start_addr: u16 = archive.len().try_into().expect("Archive length too long");
         archive[DICT_START_ADDR].copy_from_slice(dict_start_addr.to_le_bytes().as_ref());
 
-        for (idx, val) in dictionary_keys.iter() {
+        for (idx, val) in &dictionary_keys {
             let idx = **idx as usize;
 
             // Update the dictionary lookup with cur_addr.
@@ -95,29 +119,35 @@ impl Compress {
                 .copy_from_slice(cur_addr.to_le_bytes().as_ref());
 
             // Write the length of dictionary entry (u16)
-            archive
-                .write((val.len() as u16).to_le_bytes().as_ref())
-                .unwrap();
+            let entry_len: u16 = val
+                .len()
+                .try_into()
+                .expect("Dictionary entry length too long");
+            archive.write_all(entry_len.to_le_bytes().as_ref()).unwrap();
 
             // Write the dictionary contents.
-            archive.write(&val).unwrap();
+            archive.write_all(&val).unwrap();
 
             // Update cur_addr to start of new entry.
-            cur_addr += ADDR_SIZE as u16 + val.len() as u16;
+            cur_addr += ADDR_SIZE as u16 + entry_len;
         }
 
         // Update the record start address.
-        let record_start_addr = archive.len() as u16;
+        let record_start_addr: u16 = archive.len().try_into().expect("Record length too long");
         archive[RECORD_START_ADDR].copy_from_slice(record_start_addr.to_le_bytes().as_ref());
 
         for record in &self.records {
             // Write the length of the record.
-            let record_len = (record.len() * ADDR_SIZE) as u16;
-            archive.write(record_len.to_le_bytes().as_ref()).unwrap();
+            let cur_record_len = record.len().try_into().expect("Record len too big");
+            archive
+                .write_all(RunLengthEncoded::encode(cur_record_len).as_ref())
+                .unwrap();
 
             // Write the record.
-            for val in record {
-                archive.write(val.to_le_bytes().as_ref()).unwrap();
+            for &val in record {
+                archive
+                    .write_all(RunLengthEncoded::encode(val).as_ref())
+                    .unwrap();
             }
         }
 

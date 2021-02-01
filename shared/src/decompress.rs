@@ -1,4 +1,6 @@
-use super::{ADDR_SIZE, DICT_START_ADDR, LOOKUP_START, NUM_RECORD_ADDR, RECORD_START_ADDR};
+use crate::{RunLengthEncoded, RECORD_START_ADDR};
+
+use super::{ADDR_SIZE, DICT_START_ADDR, LOOKUP_START, NUM_RECORD_ADDR};
 
 #[derive(Debug)]
 pub struct Decompress<'a> {
@@ -30,11 +32,11 @@ impl<'a> Decompress<'a> {
         let dict_start_addr = u16::from_le_bytes(size_buf) as usize;
 
         size_buf.copy_from_slice(&data[RECORD_START_ADDR]);
-        let record_start_addr = u16::from_le_bytes(size_buf) as usize;
+        let record_idx_addr = u16::from_le_bytes(size_buf) as usize;
 
         let dict_lookup = &data[LOOKUP_START..dict_start_addr];
-        let dict = &data[dict_start_addr..record_start_addr];
-        let records = &data[record_start_addr..];
+        let dict = &data[dict_start_addr..record_idx_addr];
+        let records = &data[record_idx_addr..];
 
         Self {
             dict_lookup,
@@ -67,20 +69,15 @@ impl<'a> Decompress<'a> {
     }
 
     pub fn next_record<'b>(&mut self, dst: &'b mut [u8]) -> Option<&'b [u8]> {
-        let record = if let Some([lenb1, lenb2, xs @ ..]) = self.records.get(self.current_record..)
-        {
-            let len = u16::from_le_bytes([*lenb1, *lenb2]) as usize;
-            self.current_record += len + ADDR_SIZE;
-            &xs[..len]
-        } else {
-            return None;
-        };
+        let (len, mut remaining_bytes) = self
+            .records
+            .get(self.current_record..)
+            .and_then(RunLengthEncoded::decode)?;
 
         let mut end = 0;
-        for id_bytes in record.chunks(2) {
-            let mut buf = [0_u8; 2];
-            buf.copy_from_slice(id_bytes); // Come on array_chunks!
-            let id = u16::from_le_bytes(buf);
+        for _ in 0..len {
+            let (id, rem) = RunLengthEncoded::decode(remaining_bytes)?;
+            remaining_bytes = rem;
 
             let dict_entry = self.dict_lookup(id);
 
@@ -89,6 +86,8 @@ impl<'a> Decompress<'a> {
         }
 
         let written_buf = &dst[..end];
+        let len_dif = self.records.len() - remaining_bytes.len();
+        self.current_record += len_dif;
 
         Some(written_buf)
     }
