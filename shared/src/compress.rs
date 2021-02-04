@@ -4,8 +4,11 @@ use crate::{
     RunLengthEncoded, ADDR_SIZE, DICT_START_ADDR, LOOKUP_START, NUM_RECORD_ADDR, RECORD_START_ADDR,
 };
 
-const MAX_DICT_LEN: usize = 512;
+const MAX_DICT_MULTI_BYTE_LEN: usize = 450;
 const MAX_DICT_ENTRY_LEN: usize = 10;
+
+type Id = usize;
+type SmallId = u16;
 
 // Applies a 3-stage compression:
 //
@@ -15,16 +18,15 @@ const MAX_DICT_ENTRY_LEN: usize = 10;
 //
 // * Stage 2
 //   Re-uses the stage 1 dictionary to count how many times each sequence
-//   is found. Input is compressed at this stage.
+//   is found.
 //
 // * Stage 3
-//   Uses the counts from stage 2 to build a dictionary consisting of the
-//   byte sequences seen.
-//   Then re-maps the compressed records from stage 2 to the new dictionary.
+//   Uses the counts from stage 2 to find the most freqently seen sequences.
+//   It then compresses and builds the final dictionary from that.
 #[derive(Debug)]
 pub struct Compress {
     // Stage 0 dictionary.
-    dict: BTreeMap<Vec<u8>, u32>,
+    dict: BTreeMap<Vec<u8>, Id>,
     // Uncompressed inputs.
     records: Vec<Vec<u8>>,
     max_record_len: u32,
@@ -62,13 +64,7 @@ impl Compress {
             if !self.dict.contains_key(new_seq) || new_seq.len() >= MAX_DICT_ENTRY_LEN {
                 // A bit odd, but we don't want to remove the previous entry.
                 if !self.dict.contains_key(new_seq) {
-                    let val = self.dict.insert(
-                        new_seq.to_vec(),
-                        self.dict
-                            .len()
-                            .try_into()
-                            .expect("Unable to encode length as u32"),
-                    );
+                    let val = self.dict.insert(new_seq.to_vec(), self.dict.len());
 
                     if val.is_some() {
                         panic!("Incorrectly removed previous entry");
@@ -88,17 +84,15 @@ impl Compress {
         self.records.push(record.to_owned());
     }
 
-    fn apply_stage2(&self) -> (BTreeMap<u32, u32>, Vec<Vec<u32>>) {
+    fn apply_stage2(&self) -> BTreeMap<Id, usize> {
         // Iterates over the inputs a second time, counting how many times each
         // sequences was seen while we compress.
         // This is, essentially, re-applying what we did in stage 1, but without modifying
         // the dictionary.
 
         let mut counts = BTreeMap::new();
-        let mut compressed = Vec::new();
 
         for record in &self.records {
-            let mut cur_compressed = Vec::new();
             let mut cur_seq: &[u8] = &[];
             let mut cur_seq_start = 0;
 
@@ -108,7 +102,6 @@ impl Compress {
                 if self.dict.contains_key(new_seq) {
                     cur_seq = new_seq;
                 } else {
-                    cur_compressed.push(self.dict[cur_seq]);
                     *counts.entry(self.dict[cur_seq]).or_default() += 1;
 
                     // Restart the sequence from the current byte.
@@ -119,43 +112,77 @@ impl Compress {
 
             // We make have left-over data, but it's already been seen.
             if !cur_seq.is_empty() {
-                cur_compressed.push(self.dict[cur_seq]);
                 *counts.entry(self.dict[cur_seq]).or_default() += 1;
             }
-
-            compressed.push(cur_compressed);
         }
 
-        (counts, compressed)
+        counts
     }
 
     fn apply_stage3(
         &self,
-        counts: BTreeMap<u32, u32>,
-        compressed: Vec<Vec<u32>>,
-    ) -> (BTreeMap<Vec<u8>, u16>, Vec<Vec<u16>>) {
-        // Here we build up the final dictionary and reprocess the compressed entries.
-        // We start by building the final dictionary. While we do that, we build a map
-        // between the stage 1 dictionary and the final dictionary.
+        counts: BTreeMap<Id, usize>,
+    ) -> (BTreeMap<Vec<u8>, SmallId>, Vec<Vec<SmallId>>) {
+        // Here we build up the final dictionary and compress the entries.
+        // We start by finding the most frequent multi-byte sequences.
 
-        let id_to_seq: BTreeMap<_, _> = self.dict.iter().map(|(a, b)| (b, a)).collect();
-        let mut id_to_new_id: BTreeMap<u32, u16> = BTreeMap::new();
-        let mut final_dict: BTreeMap<Vec<u8>, u16> = BTreeMap::new();
+        let id_to_seq: BTreeMap<Id, _> = self.dict.iter().map(|(a, b)| (*b, a)).collect();
 
-        let single_bytes_seen = counts.into_iter().filter(|(_, times_seen)| *times_seen > 0);
-        for (id, _) in single_bytes_seen {
-            let new_id: u16 = final_dict
-                .len()
-                .try_into()
-                .expect("Unable to encode length as u16");
-            final_dict.insert(id_to_seq[&id].to_vec(), new_id);
-            id_to_new_id.insert(id, new_id);
+        let mut seen_entries: Vec<(&[u8], usize)> = counts
+            .iter()
+            .filter_map(|(id, count)| {
+                if *count > 0 {
+                    Some((id_to_seq[id].as_ref(), *count))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // We want to prioritise sequences that save us the most, so we want to prioritise
+        // longer sequences.
+        seen_entries.sort_by(|(a_seq, a_count), (b_seq, b_count)| {
+            (b_count * b_seq.len()).cmp(&(a_count * a_seq.len()))
+        });
+
+        seen_entries.truncate(MAX_DICT_MULTI_BYTE_LEN);
+
+        // Now we compress. We do this by looking for a prefix of the record in seen_entries,
+        // but we need to be aware that one may not exist. In that instance, just add the leading
+        // byte into the seen_sequences and carry on.
+        let mut final_compressed = Vec::new();
+        for mut record in self.records.iter().map(Vec::as_slice) {
+            let mut cur_compressed = Vec::new();
+
+            while !record.is_empty() {
+                let id = if let Some((id, (prefix, _))) = seen_entries
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (pf, _))| record.starts_with(pf))
+                {
+                    // Found prefix
+                    record = &record[prefix.len()..];
+                    id
+                } else {
+                    // No prefix found!
+                    let (first, rem) = record.split_first().expect("Record shouldn't be empty");
+                    record = rem;
+                    let new_id = seen_entries.len();
+                    seen_entries.push((std::slice::from_ref(first), 0));
+                    new_id
+                };
+
+                cur_compressed.push(id.try_into().expect("Can't encode length as u16"));
+            }
+
+            final_compressed.push(cur_compressed);
         }
 
-        // Now we need to re-map the compressed records to the new IDs.
-        let final_compressed = compressed
+        // Now to build the final dictionary.
+        let final_dict = seen_entries
             .into_iter()
-            .map(|record| record.into_iter().map(|id| id_to_new_id[&id]).collect())
+            .zip(0..)
+            .map(|((seq, _), id)| (seq.to_vec(), id))
             .collect();
 
         (final_dict, final_compressed)
@@ -164,8 +191,8 @@ impl Compress {
     /// Stores the compressed archive into a data structure readable by `Decompress`.
     #[must_use]
     pub fn store_archive(&self) -> Vec<u8> {
-        let (stage2_counts, compressed) = self.apply_stage2();
-        let (final_dict, compressed_records) = self.apply_stage3(stage2_counts, compressed);
+        let stage2_counts = self.apply_stage2();
+        let (final_dict, compressed_records) = self.apply_stage3(stage2_counts);
 
         let mut archive = Vec::new();
         let records_len: u16 = compressed_records
@@ -244,7 +271,7 @@ mod tests {
         let expected_record = vec![input.as_bytes().to_vec()];
         let mut expected_dict: BTreeMap<_, _> = (0..=255_u8).map(|b| (vec![b], b.into())).collect();
 
-        let len_dict: u32 = expected_dict.len().try_into().unwrap();
+        let len_dict: Id = expected_dict.len();
         expected_dict.extend(
             input
                 .as_bytes()
@@ -264,14 +291,11 @@ mod tests {
         let mut archive = Compress::new();
         archive.add_record(input);
 
-        let (actual_stage2, stage2_compressed) = archive.apply_stage2();
+        let actual_stage2 = archive.apply_stage2();
 
         let mut expected_counts = BTreeMap::new();
         expected_counts.extend((256..).step_by(2).map(|id| (id, 1)).take(6));
         assert_eq!(expected_counts, actual_stage2);
-
-        let expected_compressed: Vec<Vec<u32>> = vec![vec![256, 258, 260, 262, 264, 266]];
-        assert_eq!(expected_compressed, stage2_compressed);
     }
 
     #[test]
@@ -281,8 +305,8 @@ mod tests {
         let mut archive = Compress::new();
         archive.add_record(input);
 
-        let (stage2_count, stage2_compressed) = archive.apply_stage2();
-        let (stage3_dict, compressed) = archive.apply_stage3(stage2_count, stage2_compressed);
+        let stage2_count = archive.apply_stage2();
+        let (stage3_dict, compressed) = archive.apply_stage3(stage2_count);
 
         let expected_dict: BTreeMap<_, _> = [
             (vec![72, 101], 0),
@@ -305,10 +329,11 @@ mod tests {
     fn compress_single_record() {
         let mut archive = Compress::new();
         archive.add_record("TOBEORNOTTOBEORTOBEORNOT");
-        let (stage2_counts, stage2_compressed) = archive.apply_stage2();
-        let (_, records) = archive.apply_stage3(stage2_counts, stage2_compressed);
+        let stage2_counts = archive.apply_stage2();
+        let (stage3_dict, records) = archive.apply_stage3(stage2_counts);
 
-        let expected = vec![vec![5, 2, 3, 4, 1, 6, 5, 2, 3, 0]];
+        println!("{:#?}", stage3_dict);
+        let expected = vec![vec![0, 1, 2, 5, 4, 3, 0, 1, 2, 6]];
 
         assert_eq!(records, expected);
     }
@@ -318,10 +343,10 @@ mod tests {
         let mut archive = Compress::new();
         archive.add_record("TOBEORNOTTOBEORTOBEORNOT");
         archive.add_record("TOBEORNOTTOBEORTOBEORNOT");
-        let (stage2_counts, stage2_compressed) = archive.apply_stage2();
-        let (_, records) = archive.apply_stage3(stage2_counts, stage2_compressed);
+        let stage2_counts = archive.apply_stage2();
+        let (_, records) = archive.apply_stage3(stage2_counts);
 
-        let expected = vec![vec![1, 0, 1, 1, 0], vec![1, 0, 1, 1, 0]];
+        let expected = vec![vec![0, 1, 0, 0, 1], vec![0, 1, 0, 0, 1]];
 
         assert_eq!(records, expected);
     }
