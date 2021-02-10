@@ -1,3 +1,5 @@
+use core::time::Duration;
+
 use stm32f3_discovery::stm32f3xx_hal::stm32::{
     self,
     rtc::{ssr::R as SSR, tr::R as TR},
@@ -113,51 +115,6 @@ impl Instant {
             .unwrap_or((true, 10_000 - (start_subsecs - self_subsecs)));
         let seconds = self_seconds - start_seconds - overflow as u64;
 
-        Duration { seconds, subsecs }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Duration {
-    seconds: u64,
-    subsecs: u16,
-}
-
-impl Duration {
-    pub fn new(seconds: u64, millis: u16) -> Self {
-        Self {
-            seconds,
-            subsecs: ((millis % 1000) * 10) as u16,
-        }
-    }
-
-    pub fn from_secs(seconds: u64) -> Self {
-        Self {
-            seconds,
-            subsecs: 0,
-        }
-    }
-
-    pub fn from_millis(millis: u64) -> Self {
-        Self {
-            seconds: millis / 1000,
-            subsecs: ((millis % 1000) * 10) as u16,
-        }
-    }
-}
-
-impl core::fmt::Display for Duration {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self {
-                seconds: 0,
-                subsecs,
-            } => {
-                write!(f, "{}ms", subsecs / 10)
-            }
-            _ => {
-                write!(f, "{}.{:03}s", self.seconds, self.subsecs / 10)
-            }
-        }
+        Duration::from_secs(seconds) + Duration::from_micros(subsecs as u64 * 100)
     }
 }
