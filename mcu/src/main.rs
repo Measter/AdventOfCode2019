@@ -4,11 +4,12 @@
 use cortex_m_rt::entry;
 use panic_semihosting as _;
 use ssd1306::{
-    displaysize::DisplaySize128x32, mode::TerminalMode, Builder as DisplayBuilder, I2CDIBuilder,
+    displaysize::DisplaySize128x64, mode::TerminalMode, Builder as DisplayBuilder, I2CDIBuilder,
 };
 use stm32f3_discovery::stm32f3xx_hal::{i2c::I2c, prelude::*, stm32};
 
 mod challenges;
+mod input;
 mod rtc;
 
 #[entry]
@@ -36,7 +37,7 @@ fn main() -> ! {
 
     let interface = I2CDIBuilder::new().with_i2c_addr(0x3C).init(i2c);
     let mut display: TerminalMode<_, _> = DisplayBuilder::new()
-        .size(DisplaySize128x32)
+        .size(DisplaySize128x64)
         .connect(interface)
         .into();
     display.init().unwrap();

@@ -13,9 +13,11 @@ where
     T: WriteOnlyDataCommand,
     S: TerminalDisplaySize,
 {
-    let _ = display.write_str("AoC 2019");
+    let _ = display.write_str("AoC 2019\n\r");
 
     let mut elapsed = Duration::default();
 
     elapsed += day1::run(rtc, display);
+
+    let _ = write!(display, "Time: {:?}", elapsed);
 }
