@@ -51,6 +51,24 @@ impl Compress {
         }
     }
 
+    pub fn add_dictionary_entry<T: AsRef<[u8]>>(&mut self, entry: T) {
+        let entry = entry.as_ref();
+
+        // We need to add all sub-sequences, not just the input.
+        // E.g. If the input is [8, 4, 2, 5], then we need to add [8, 4, 2]
+        // and [8, 4] as well.
+        for e in (0..entry.len()).map(|i| &entry[..=i]) {
+            if self.dict.contains_key(e) {
+                continue;
+            }
+
+            let val = self.dict.insert(e.to_vec(), self.dict.len());
+            if val.is_some() {
+                panic!("Incorrectly removed previous entry");
+            }
+        }
+    }
+
     pub fn add_record<T: AsRef<[u8]>>(&mut self, record: T) {
         // Applies stage 1 of the process above.
         // We only iterate over the input, not compress it here.
@@ -129,10 +147,10 @@ impl Compress {
         let id_to_seq: BTreeMap<Id, _> = self.dict.iter().map(|(a, b)| (*b, a)).collect();
 
         let mut seen_entries: Vec<(&[u8], usize)> = counts
-            .iter()
+            .into_iter()
             .filter_map(|(id, count)| {
-                if *count > 0 {
-                    Some((id_to_seq[id].as_ref(), *count))
+                if count > 0 {
+                    Some((id_to_seq[&id].as_ref(), count))
                 } else {
                     None
                 }
@@ -320,6 +338,25 @@ mod tests {
         .cloned()
         .collect();
         let expected_compressed: Vec<Vec<u16>> = vec![vec![0, 1, 2, 3, 4, 5]];
+
+        assert_eq!(expected_dict, stage3_dict);
+        assert_eq!(expected_compressed, compressed);
+    }
+
+    #[test]
+    fn stage3_custom_dict_entry() {
+        let input = "Hello World!";
+
+        let mut archive = Compress::new();
+        archive.add_dictionary_entry(input);
+        archive.add_record(input);
+
+        let stage2_count = archive.apply_stage2();
+        let (stage3_dict, compressed) = archive.apply_stage3(stage2_count);
+
+        let mut expected_dict = BTreeMap::new();
+        expected_dict.insert(input.as_bytes().to_vec(), 0);
+        let expected_compressed: Vec<Vec<u16>> = vec![vec![0]];
 
         assert_eq!(expected_dict, stage3_dict);
         assert_eq!(expected_compressed, compressed);
