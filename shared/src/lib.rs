@@ -21,7 +21,7 @@ const RUN_LEN_MAX_BYTE: u16 = 0x7F;
 const MULTI_BYTE_START: u8 = 0x80;
 
 #[derive(Debug, Copy, Clone)]
-enum RunLengthEncoded {
+pub enum RunLengthEncoded {
     Single([u8; 1]),
     Double([u8; 2]),
 }
@@ -36,7 +36,7 @@ impl AsRef<[u8]> for RunLengthEncoded {
 }
 
 impl RunLengthEncoded {
-    fn encode(val: u16) -> RunLengthEncoded {
+    pub fn encode(val: u16) -> RunLengthEncoded {
         if val > RUN_LEN_MAX_BYTE {
             let low_byte: u8 = (val & RUN_LEN_MAX_BYTE).try_into().unwrap();
             let low_byte = low_byte | MULTI_BYTE_START;
@@ -49,7 +49,7 @@ impl RunLengthEncoded {
         }
     }
 
-    fn decode(bytes: &[u8]) -> Option<(u16, &[u8])> {
+    pub fn decode(bytes: &[u8]) -> Option<(u16, &[u8])> {
         match bytes {
             [val @ 0..=0x7F, xs @ ..] => Some(((*val).into(), xs)),
             [low_byte @ 0x80..=0xFF, high_byte, xs @ ..] => {

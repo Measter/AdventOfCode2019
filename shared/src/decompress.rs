@@ -20,7 +20,7 @@ pub struct Decompress<'a> {
 }
 
 impl<'a> Decompress<'a> {
-    pub fn open<T: AsRef<[u8]> + 'a>(data: &'a T) -> Self {
+    pub fn open<T: AsRef<[u8]> + ?Sized + 'a>(data: &'a T) -> Self {
         let data = data.as_ref();
 
         let mut size_buf = [0_u8; 2];
