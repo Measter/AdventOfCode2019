@@ -403,7 +403,7 @@ mod tests {
 
         let mut buf = [0_u8; 50];
         for _ in 0..reader.num_records() {
-            let record = reader.next_record(&mut buf);
+            let record = reader.next_record(&mut buf).unwrap();
             assert_eq!(record, Some(input_text.as_bytes()));
         }
     }
@@ -426,7 +426,7 @@ mod tests {
 
         let mut buf = [0_u8; 50];
         for (i, line) in input_text.lines().enumerate() {
-            let record = reader.next_record(&mut buf);
+            let record = reader.next_record(&mut buf).unwrap();
             assert_eq!(record, Some(line.as_bytes()), "{}: {}", i, line);
         }
     }

@@ -20,6 +20,7 @@ const LOOKUP_START: usize = 6;
 const RUN_LEN_MAX_BYTE: u16 = 0x7F;
 const MULTI_BYTE_START: u8 = 0x80;
 
+#[derive(Debug)]
 pub enum ErrorKind {
     InvalidCompressedFlag,
     LengthDecode,
