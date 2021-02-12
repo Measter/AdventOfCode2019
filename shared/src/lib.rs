@@ -1,8 +1,6 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![warn(clippy::pedantic)]
 
-use core::convert::TryInto;
-
 #[cfg(any(feature = "std", test))]
 extern crate std;
 
@@ -36,26 +34,26 @@ impl AsRef<[u8]> for RunLengthEncoded {
 }
 
 impl RunLengthEncoded {
+    #[must_use]
     pub fn encode(val: u16) -> RunLengthEncoded {
-        if val > RUN_LEN_MAX_BYTE {
-            let low_byte: u8 = (val & RUN_LEN_MAX_BYTE).try_into().unwrap();
-            let low_byte = low_byte | MULTI_BYTE_START;
-            let high_byte = ((val >> 7) & 0xFF).try_into().unwrap();
+        // We'll be needing the top bit for the multi-byte marker.
+        assert!(val < 0x7FFF);
 
-            RunLengthEncoded::Double([low_byte, high_byte])
+        if val > RUN_LEN_MAX_BYTE {
+            let [lb, hb] = val.to_le_bytes();
+            RunLengthEncoded::Double([hb | MULTI_BYTE_START, lb])
         } else {
-            #[allow(clippy::clippy::cast_possible_truncation)]
-            RunLengthEncoded::Single([val as u8])
+            RunLengthEncoded::Single([val.to_le_bytes()[0]])
         }
     }
 
+    #[must_use]
     pub fn decode(bytes: &[u8]) -> Option<(u16, &[u8])> {
         match bytes {
             [val @ 0..=0x7F, xs @ ..] => Some(((*val).into(), xs)),
-            [low_byte @ 0x80..=0xFF, high_byte, xs @ ..] => {
-                let upper: u16 = (*high_byte).into();
-                let lower: u16 = (*low_byte).into();
-                Some(((upper << 7) | lower & RUN_LEN_MAX_BYTE, xs))
+            [hb, lb, xs @ ..] => {
+                let val = u16::from_le_bytes([*lb, *hb & 0x7F]);
+                Some((val, xs))
             }
             _ => None,
         }
