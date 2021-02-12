@@ -1,4 +1,4 @@
-use crate::{RunLengthEncoded, RECORD_START_ADDR};
+use crate::{ErrorKind, RunLengthEncoded, RECORD_START_ADDR};
 
 use super::{ADDR_SIZE, DICT_START_ADDR, LOOKUP_START, NUM_RECORD_ADDR};
 
@@ -68,15 +68,32 @@ impl<'a> Decompress<'a> {
         &self.dict[addr + 2..addr + 2 + len]
     }
 
-    pub fn next_record<'b>(&mut self, dst: &'b mut [u8]) -> Option<&'b [u8]> {
-        let (len, mut remaining_bytes) = self
-            .records
-            .get(self.current_record..)
-            .and_then(RunLengthEncoded::decode)?;
+    /// Reads the next record from the file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error:
+    ///
+    /// * On failure to read record length.
+    /// * Record length exceeds output buffer length.
+    /// * Record length exceeds remaining file length.
+    pub fn next_record<'b>(&mut self, dst: &'b mut [u8]) -> Result<Option<&'b [u8]>, ErrorKind> {
+        if self.current_record == self.records.len() {
+            return Ok(None);
+        }
+
+        let (len, mut remaining_bytes) =
+            RunLengthEncoded::decode(&self.records[self.current_record..])
+                .ok_or(ErrorKind::RecordReadError)?;
+
+        if dst.len() < len as usize {
+            return Err(ErrorKind::RecordReadError);
+        }
 
         let mut end = 0;
         for _ in 0..len {
-            let (id, rem) = RunLengthEncoded::decode(remaining_bytes)?;
+            let (id, rem) =
+                RunLengthEncoded::decode(remaining_bytes).ok_or(ErrorKind::RecordReadError)?;
             remaining_bytes = rem;
 
             let dict_entry = self.dict_lookup(id);
@@ -89,6 +106,6 @@ impl<'a> Decompress<'a> {
         let len_dif = self.records.len() - self.current_record - remaining_bytes.len();
         self.current_record += len_dif;
 
-        Some(written_buf)
+        Ok(Some(written_buf))
     }
 }

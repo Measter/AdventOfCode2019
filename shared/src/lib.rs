@@ -5,9 +5,11 @@
 extern crate std;
 
 #[cfg(any(feature = "std", test))]
-pub mod compress;
+mod compress;
+mod decompress;
+mod input;
 
-pub mod decompress;
+pub use input::*;
 
 const ADDR_SIZE: usize = 2;
 const DICT_START_ADDR: core::ops::Range<usize> = 0..2;
@@ -18,8 +20,23 @@ const LOOKUP_START: usize = 6;
 const RUN_LEN_MAX_BYTE: u16 = 0x7F;
 const MULTI_BYTE_START: u8 = 0x80;
 
+pub enum ErrorKind {
+    InvalidCompressedFlag,
+    LengthDecode,
+    RecordReadError,
+    #[cfg(any(feature = "std", test))]
+    Io(std::io::Error),
+}
+
+#[cfg(any(feature = "std", test))]
+impl From<std::io::Error> for ErrorKind {
+    fn from(e: std::io::Error) -> Self {
+        Self::Io(e)
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
-pub enum RunLengthEncoded {
+enum RunLengthEncoded {
     Single([u8; 1]),
     Double([u8; 2]),
 }
@@ -35,7 +52,7 @@ impl AsRef<[u8]> for RunLengthEncoded {
 
 impl RunLengthEncoded {
     #[must_use]
-    pub fn encode(val: u16) -> RunLengthEncoded {
+    fn encode(val: u16) -> RunLengthEncoded {
         // We'll be needing the top bit for the multi-byte marker.
         assert!(val < 0x7FFF);
 
@@ -48,7 +65,7 @@ impl RunLengthEncoded {
     }
 
     #[must_use]
-    pub fn decode(bytes: &[u8]) -> Option<(u16, &[u8])> {
+    fn decode(bytes: &[u8]) -> Option<(u16, &[u8])> {
         match bytes {
             [val @ 0..=0x7F, xs @ ..] => Some(((*val).into(), xs)),
             [hb, lb, xs @ ..] => {
