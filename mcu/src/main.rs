@@ -9,7 +9,6 @@ use ssd1306::{
 use stm32f3_discovery::stm32f3xx_hal::{i2c::I2c, prelude::*, stm32};
 
 mod challenges;
-mod input;
 mod rtc;
 
 #[entry]
