@@ -13,9 +13,6 @@ where
     T: WriteOnlyDataCommand,
     S: TerminalDisplaySize,
 {
-    let _ = display.clear();
-    let _ = display.write_str("AoC 2019 Day 1\r\n");
-
     let mut input = Reader::open(include_bytes!("../../../inputs/aoc_1901.bin")).unwrap();
 
     // Part 1
@@ -43,8 +40,9 @@ where
     }
 
     let duration = rtc.now().elapsed_since(&start);
-    let _ = writeln!(display, "Part 1:\n\r{}", sum_p1);
-    let _ = writeln!(display, "Part 2:\n\r{}", sum_p2);
+    let _ = writeln!(display, "Day 1:{:?}", duration);
+    let _ = writeln!(display, "P1:{}", sum_p1);
+    let _ = writeln!(display, "P2:{}\r\n", sum_p2);
 
     duration
 }
