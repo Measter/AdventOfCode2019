@@ -7,6 +7,7 @@ use ssd1306::{
 };
 
 mod day1;
+mod intcode;
 
 pub fn run<T, S>(rtc: &RTC, display: &mut TerminalMode<T, S>)
 where
