@@ -1,18 +1,11 @@
 use core::{fmt::Write, time::Duration};
 
+use super::Terminal;
 use crate::rtc::RTC;
 
 use shared::Reader;
-use ssd1306::{
-    mode::{terminal::TerminalDisplaySize, TerminalMode},
-    prelude::WriteOnlyDataCommand,
-};
 
-pub fn run<T, S>(rtc: &RTC, display: &mut TerminalMode<T, S>) -> Duration
-where
-    T: WriteOnlyDataCommand,
-    S: TerminalDisplaySize,
-{
+pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
     let mut input = Reader::open(include_bytes!("../../../inputs/aoc_1901.bin")).unwrap();
 
     // Part 1

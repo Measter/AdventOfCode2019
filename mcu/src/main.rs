@@ -6,13 +6,14 @@ use panic_semihosting as _;
 use ssd1306::{
     displaysize::DisplaySize128x64, mode::TerminalMode, Builder as DisplayBuilder, I2CDIBuilder,
 };
-use stm32f3_discovery::stm32f3xx_hal::{i2c::I2c, prelude::*, stm32};
+use stm32f3_discovery::stm32f3xx_hal::{delay::Delay, i2c::I2c, prelude::*, stm32};
 
 mod challenges;
 mod rtc;
 
 #[entry]
 fn main() -> ! {
+    let core_periphs = stm32::CorePeripherals::take().unwrap();
     let periphs = stm32::Peripherals::take().unwrap();
 
     let mut rcc = periphs.RCC.constrain();
@@ -43,8 +44,9 @@ fn main() -> ! {
     let _ = display.clear();
 
     let rtc = rtc::RTC::init(periphs.RTC);
+    let mut delayer = Delay::new(core_periphs.SYST, clocks);
 
-    challenges::run(&rtc, &mut display);
+    challenges::run(&mut delayer, &rtc, &mut display);
 
     loop {}
 }
