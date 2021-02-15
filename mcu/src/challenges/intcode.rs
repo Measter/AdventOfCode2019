@@ -1,5 +1,6 @@
 use core::convert::TryFrom;
 
+#[derive(Debug)]
 pub enum ErrorKind {
     InvalidOpcode(u32),
     EndOfMemory,
@@ -8,8 +9,8 @@ pub enum ErrorKind {
 
 pub enum OpCode {
     Halt,
-    Add { a: u32, b: u32, dst: usize },
-    Multiply { a: u32, b: u32, dst: usize },
+    Add { a: usize, b: usize, dst: usize },
+    Multiply { a: usize, b: usize, dst: usize },
 }
 
 impl OpCode {
@@ -27,13 +28,13 @@ impl TryFrom<&[u32]> for OpCode {
     fn try_from(value: &[u32]) -> Result<Self, Self::Error> {
         match value {
             [1, a, b, dst, ..] => Ok(OpCode::Add {
-                a: *a,
-                b: *b,
+                a: *a as usize,
+                b: *b as usize,
                 dst: *dst as usize,
             }),
             [2, a, b, dst, ..] => Ok(OpCode::Multiply {
-                a: *a,
-                b: *b,
+                a: *a as usize,
+                b: *b as usize,
                 dst: *dst as usize,
             }),
             [99, ..] => Ok(OpCode::Halt),
@@ -43,14 +44,14 @@ impl TryFrom<&[u32]> for OpCode {
     }
 }
 
-pub struct IntCode<const N: usize> {
-    memory: [u32; N],
+pub struct IntCode<'a> {
+    memory: &'a mut [u32],
     pc: usize,
     is_halted: bool,
 }
 
-impl<const N: usize> IntCode<N> {
-    pub fn new(memory: [u32; N]) -> Self {
+impl<'a> IntCode<'a> {
+    pub fn new(memory: &'a mut [u32]) -> Self {
         Self {
             memory,
             pc: 0,
@@ -58,10 +59,12 @@ impl<const N: usize> IntCode<N> {
         }
     }
 
+    #[allow(unused)]
     pub fn memory(&self) -> &[u32] {
-        &self.memory
+        self.memory
     }
 
+    #[allow(unused)]
     pub fn pc(&self) -> usize {
         self.pc
     }
@@ -84,6 +87,9 @@ impl<const N: usize> IntCode<N> {
         match opcode {
             OpCode::Halt => self.is_halted = true,
             OpCode::Add { a, b, dst } => {
+                let a = *self.memory.get(a).ok_or(ErrorKind::InvalidMemoryAddr(a))?;
+                let b = *self.memory.get(b).ok_or(ErrorKind::InvalidMemoryAddr(b))?;
+
                 *self
                     .memory
                     .get_mut(dst)
@@ -91,6 +97,9 @@ impl<const N: usize> IntCode<N> {
                 self.pc += opcode.length();
             }
             OpCode::Multiply { a, b, dst } => {
+                let a = *self.memory.get(a).ok_or(ErrorKind::InvalidMemoryAddr(a))?;
+                let b = *self.memory.get(b).ok_or(ErrorKind::InvalidMemoryAddr(b))?;
+
                 *self
                     .memory
                     .get_mut(dst)
