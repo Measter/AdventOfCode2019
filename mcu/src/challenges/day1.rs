@@ -35,7 +35,7 @@ pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
     let duration = rtc.now().elapsed_since(&start);
     let _ = writeln!(display, "Day 1:{:?}", duration);
     let _ = writeln!(display, "P1:{}", sum_p1);
-    let _ = writeln!(display, "P2:{}\r\n", sum_p2);
+    let _ = writeln!(display, "P2:{}", sum_p2);
 
     duration
 }

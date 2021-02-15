@@ -29,7 +29,7 @@ pub fn run(delayer: &mut Delay, rtc: &RTC, display: &mut Terminal) {
         let _ = display.write_str("    AoC 2019\r\n\n");
 
         elapsed += challenge(rtc, display);
-        let _ = write!(display, "T. Time:{:?}", elapsed);
+        let _ = write!(display, "\r\nT. Time:{:?}", elapsed);
 
         // Can't do a delay of greater than 349ms. Nice job...
         delayer.delay_ms(250_u16);
