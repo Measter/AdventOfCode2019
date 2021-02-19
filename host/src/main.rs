@@ -61,9 +61,37 @@ fn intcode_split<'a>(archive: &mut Writer<'a>, input: &'a str) -> String {
     )
 }
 
+fn day_3<'a>(archive: &mut Writer<'a>, input: &'a str) -> String {
+    let mut lines = input.lines();
+    let first_wire = lines.next().unwrap();
+    let second_wire = lines.next().unwrap();
+
+    let mut max_len = 0;
+    let mut num_instrs_first_wire = 0;
+    for instr in first_wire.split(',') {
+        archive.add_record(instr);
+        num_instrs_first_wire += 1;
+        max_len = instr.len().max(max_len);
+    }
+
+    archive.add_record("-");
+    let mut num_instrs_second_wire = 0;
+    for instr in second_wire.split(',') {
+        archive.add_record(instr);
+        num_instrs_second_wire += 1;
+        max_len = instr.len().max(max_len);
+    }
+
+    format!(
+        "Max record: {} bytes, Wire 1 Length: {}, Wire 2 Length: {}",
+        max_len, num_instrs_first_wire, num_instrs_second_wire
+    )
+}
+
 fn main() -> Result<()> {
     archive_input(1, &[], by_line)?;
     archive_input(2, &["1,", "2,", "99,"], intcode_split)?;
+    archive_input(3, &[], day_3)?;
 
     Ok(())
 }
