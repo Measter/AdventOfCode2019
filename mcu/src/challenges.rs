@@ -33,6 +33,5 @@ pub fn run(delayer: &mut Delay, rtc: &RTC, display: &mut Terminal) {
 
         // Can't do a delay of greater than 262ms. Nice job...
         delayer.delay_ms(250_u16);
-        delayer.delay_ms(250_u16);
     }
 }
