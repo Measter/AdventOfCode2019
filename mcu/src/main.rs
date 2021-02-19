@@ -22,7 +22,7 @@ fn main() -> ! {
     let clocks = rcc
         .cfgr
         .use_hse(8.mhz())
-        .sysclk(48.mhz())
+        .sysclk(64.mhz())
         .pclk1(24.mhz())
         .pclk2(24.mhz())
         .freeze(&mut flash.acr);
