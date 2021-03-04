@@ -10,10 +10,9 @@ edition = "2018"
 cortex-m = "0.6.0"
 cortex-m-rt = "0.6.13"
 panic-semihosting = "0.5.6"
-ssd1306 = "0.5.1"
+ssd1306 = { git = "https://github.com/Measter/ssd1306.git" }
 stm32f3-discovery = "0.5.0"
-tinyvec = {version = "1.1.1", features = ["rustc_1_40", "nightly_const_generics"] }
+tinyvec = { version = "1.1.1", features = ["rustc_1_40", "nightly_const_generics"] }
 
 [dependencies.shared]
 path = "../shared"
-
