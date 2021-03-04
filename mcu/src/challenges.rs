@@ -16,12 +16,14 @@ use stm32f3_discovery::stm32f3xx_hal::{
 mod day1;
 mod day2;
 mod day3;
+mod day4;
 mod intcode;
 
 type Interface = I2CInterface<I2c<I2C1, (PB6<AF4>, PB7<AF4>)>>;
 type Terminal = TerminalMode<Interface, DisplaySize128x64>;
 
-const CHALLENGES: &[fn(&RTC, &mut Terminal) -> Duration] = &[day1::run, day2::run, day3::run];
+const CHALLENGES: &[fn(&RTC, &mut Terminal) -> Duration] =
+    &[day1::run, day2::run, day3::run, day4::run];
 
 pub fn run(delayer: &mut Delay, rtc: &RTC, display: &mut Terminal) {
     let mut elapsed = Duration::default();
