@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(str_split_once, array_windows)]
 
 use cortex_m_rt::entry;
 use panic_semihosting as _;

@@ -1,9 +1,9 @@
-use core::{fmt::Write, time::Duration};
+use core::convert::TryInto;
 
 use shared::Reader;
 use tinyvec::ArrayVec;
 
-use super::Terminal;
+use super::ChallengeResponse;
 use crate::rtc::RTC;
 
 #[derive(Copy, Clone, Default)]
@@ -66,7 +66,7 @@ impl LineSegment {
     }
 }
 
-pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
+pub fn run(rtc: &RTC) -> ChallengeResponse {
     let start = rtc.now();
 
     let mut input = Reader::open(include_bytes!("../../../inputs/aoc_1903.bin")).unwrap();
@@ -163,9 +163,9 @@ pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
     }
 
     let duration = rtc.now().elapsed_since(&start);
-    let _ = writeln!(display, "Day 3:{:?}", duration);
-    let _ = writeln!(display, "P1:{}", closest.distance());
-    let _ = writeln!(display, "P2:{}", shortest);
-
-    duration
+    ChallengeResponse {
+        duration,
+        part1: Some(closest.distance().try_into().unwrap()),
+        part2: Some(shortest.into()),
+    }
 }

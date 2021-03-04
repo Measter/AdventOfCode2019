@@ -1,11 +1,9 @@
-use core::{fmt::Write, time::Duration};
-
-use super::Terminal;
+use super::ChallengeResponse;
 use crate::rtc::RTC;
 
 use shared::Reader;
 
-pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
+pub fn run(rtc: &RTC) -> ChallengeResponse {
     let mut input = Reader::open(include_bytes!("../../../inputs/aoc_1901.bin")).unwrap();
 
     // Part 1
@@ -33,9 +31,9 @@ pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
     }
 
     let duration = rtc.now().elapsed_since(&start);
-    let _ = writeln!(display, "Day 1:{:?}", duration);
-    let _ = writeln!(display, "P1:{}", sum_p1);
-    let _ = writeln!(display, "P2:{}", sum_p2);
-
-    duration
+    ChallengeResponse {
+        duration,
+        part1: Some(sum_p1.into()),
+        part2: Some(sum_p2.into()),
+    }
 }

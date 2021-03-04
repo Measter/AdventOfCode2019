@@ -1,8 +1,6 @@
-use core::{fmt::Write, time::Duration};
-
 use shared::Reader;
 
-use super::{intcode::IntCode, Terminal};
+use super::{intcode::IntCode, ChallengeResponse};
 use crate::rtc::RTC;
 
 fn load_program(mem: &mut [u32]) {
@@ -14,7 +12,7 @@ fn load_program(mem: &mut [u32]) {
     }
 }
 
-pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
+pub fn run(rtc: &RTC) -> ChallengeResponse {
     let start = rtc.now();
 
     let mut orig_memory = [0_u32; 140];
@@ -55,9 +53,9 @@ pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
     let p2_res = p2_res.expect("No answer found for D2P2");
 
     let duration = rtc.now().elapsed_since(&start);
-    let _ = writeln!(display, "Day 2:{:?}", duration);
-    let _ = writeln!(display, "P1:{}", p1_res);
-    let _ = writeln!(display, "P2:{}", p2_res);
-
-    duration
+    ChallengeResponse {
+        duration,
+        part1: Some(p1_res.into()),
+        part2: Some(p2_res.into()),
+    }
 }

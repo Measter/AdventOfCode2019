@@ -1,9 +1,7 @@
-use core::{fmt::Write, time::Duration};
-
 use numtoa::NumToA;
 use shared::Reader;
 
-use super::Terminal;
+use super::ChallengeResponse;
 use crate::rtc::RTC;
 
 fn is_valid(password: u32) -> (bool, bool) {
@@ -19,7 +17,7 @@ fn is_valid(password: u32) -> (bool, bool) {
     let mut never_decrease = true;
 
     for i in 1..digits.len() {
-        /// wut...
+        // wut...
         let pair_eq = digits[i - 1] == digits[i];
         let prec_eq = digits.get(i.wrapping_sub(2)) == Some(&digits[i - 1]);
         let post_eq = digits.get(i + 1) == Some(&digits[i]);
@@ -36,7 +34,7 @@ fn is_valid(password: u32) -> (bool, bool) {
     (valid_p1, valid_p2)
 }
 
-pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
+pub fn run(rtc: &RTC) -> ChallengeResponse {
     let start = rtc.now();
 
     let mut input = Reader::open(include_bytes!("../../../inputs/aoc_1904.bin")).unwrap();
@@ -60,9 +58,9 @@ pub fn run(rtc: &RTC, display: &mut Terminal) -> Duration {
     }
 
     let duration = rtc.now().elapsed_since(&start);
-    let _ = writeln!(display, "Day 4:{:?}", duration);
-    let _ = writeln!(display, "P1:{}", num_valid_p1);
-    let _ = writeln!(display, "P2:{}", num_valid_p2);
-
-    duration
+    ChallengeResponse {
+        duration,
+        part1: Some(num_valid_p1.into()),
+        part2: Some(num_valid_p2.into()),
+    }
 }
