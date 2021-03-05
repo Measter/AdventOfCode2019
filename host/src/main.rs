@@ -92,6 +92,7 @@ fn main() -> Result<()> {
     archive_input(1, &[], by_line)?;
     archive_input(2, &["1,", "2,", "99,"], intcode_split)?;
     archive_input(3, &[], day_3)?;
+    archive_input(4, &[], by_line)?;
 
     Ok(())
 }
