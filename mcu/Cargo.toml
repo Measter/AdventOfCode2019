@@ -13,7 +13,7 @@ panic-semihosting = "0.5.6"
 ssd1306 = { git = "https://github.com/Measter/ssd1306.git" }
 stm32f3-discovery = "0.5.0"
 tinyvec = { version = "1.1.1", features = ["rustc_1_40", "nightly_const_generics"] }
-numtoa = "0.2.3"
+itoa = { version = "0.4.7", default-features = false }
 
 [dependencies.shared]
 path = "../shared"

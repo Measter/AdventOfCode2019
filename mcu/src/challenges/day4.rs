@@ -1,4 +1,4 @@
-use numtoa::NumToA;
+use itoa::Buffer;
 use shared::Reader;
 
 use super::ChallengeResponse;
@@ -9,8 +9,8 @@ fn is_valid(password: u32) -> (bool, bool) {
         return (false, false);
     }
 
-    let mut digits = [0; 6];
-    password.numtoa(10, &mut digits);
+    let mut digits = Buffer::new();
+    let digits = digits.format(password).as_bytes();
 
     let mut p1_has_double = false;
     let mut p2_has_double = false;
